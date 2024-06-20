@@ -1,0 +1,38 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "Slice of watermelon and clouds in the background in 3d rendering style"
+        ],
+        "class": "in 3d rendering style",
+        "images": [
+            "dataset/Customization/style_3d/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in 3d rendering style",
+            "A butterfly in 3d rendering style",
+            "A robot in 3d rendering style",
+            "A dog in 3d rendering style",
+            "A piano in 3d rendering style",
+            "A house in 3d rendering style",
+            "A little gril smiling in 3d rendering style",
+            "A Christmas tree in 3d rendering style"
+        ],
+        "subject": [
+            "A pll dog swimming in a pool in 3d rendering style",
+            "A pll dog drinking coffee in 3d rendering style",
+            "A pll dog fishing by a lake in 3d rendering style",
+            "A pll dog wearing a hat in 3d rendering style",
+            "A pll dog driving a car in 3d rendering style",
+            "A pll dog watching TV in 3d rendering style",
+            "A pll dog playing a guitar in 3d rendering style",
+            "A pll dog skateboarding in 3d rendering style",
+            "A pll dog reading a book in 3d rendering style"
+        ],
+        "object": [
+            "A pll dog in 3d rendering style",
+            "A pll dog on a table in 3d rendering style",
+            "A pll dog under cherry blossom in 3d rendering style",
+            "A pll dog in front of a house in 3d rendering style"
+        ]
+    }
+}

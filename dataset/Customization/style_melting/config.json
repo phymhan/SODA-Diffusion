@@ -1,0 +1,34 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "A flower in melting golden 3d rendering style"
+        ],
+        "class": "in melting golden 3d rendering style",
+        "images": [
+            "dataset/Customization/style_melting/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in melting golden 3d rendering style",
+            "A butterfly in melting golden 3d rendering style",
+            "A robot in melting golden 3d rendering style",
+            "A dog in melting golden 3d rendering style",
+            "A piano in melting golden 3d rendering style",
+            "A house in melting golden 3d rendering style",
+            "A little gril smiling in melting golden 3d rendering style",
+            "A Christmas tree in melting golden 3d rendering style"
+        ],
+        "subject": [
+            "A pll dog in melting golden 3d rendering style",
+            "A pll dog drinking coffee in melting golden 3d rendering style",
+            "A pll dog runing in melting golden 3d rendering style",
+            "A pll dog wearing a hat in melting golden 3d rendering style",
+            "A pll dog driving a car in melting golden 3d rendering style"
+        ],
+        "object": [
+            "A pll dog in melting golden 3d rendering style",
+            "A pll dog on a table in melting golden 3d rendering style",
+            "A pll dog under cherry blossom in melting golden 3d rendering style",
+            "A pll dog in front of a house in melting golden 3d rendering style"
+        ]
+    }
+}

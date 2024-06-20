@@ -1,0 +1,38 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "A village in oil painting style"
+        ],
+        "class": "in oil painting style",
+        "images": [
+            "dataset/Customization/style_oilpainting/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in oil painting style",
+            "A butterfly in oil painting style",
+            "A robot in oil painting style",
+            "A dog in oil painting style",
+            "A piano in oil painting style",
+            "A house in oil painting style",
+            "A little gril smiling in oil painting style",
+            "A Christmas tree in oil painting style"
+        ],
+        "subject": [
+            "A pll dog swimming in a pool in oil painting style",
+            "A pll dog drinking coffee in oil painting style",
+            "A pll dog fishing by a lake in oil painting style",
+            "A pll dog wearing a hat in oil painting style",
+            "A pll dog driving a car in oil painting style",
+            "A pll dog watching TV in oil painting style",
+            "A pll dog playing a guitar in oil painting style",
+            "A pll dog skateboarding in oil painting style",
+            "A pll dog reading a book in oil painting style"
+        ],
+        "object": [
+            "A pll dog in oil painting style",
+            "A pll dog on a table in oil painting style",
+            "A pll dog under cherry blossom in oil painting style",
+            "A pll dog in front of a house in oil painting style"
+        ]
+    }
+}

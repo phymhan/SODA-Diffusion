@@ -1,0 +1,38 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "A cat in watercolor painting style"
+        ],
+        "class": "in watercolor painting style",
+        "images": [
+            "dataset/Customization/style_watercolor/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in watercolor painting style",
+            "A butterfly in watercolor painting style",
+            "A robot in watercolor painting style",
+            "A dog in watercolor painting style",
+            "A piano in watercolor painting style",
+            "A house in watercolor painting style",
+            "A little gril smiling in watercolor painting style",
+            "A Christmas tree in watercolor painting style"
+        ],
+        "subject": [
+            "A pll dog swimming in a pool in watercolor painting style",
+            "A pll dog drinking coffee in watercolor painting style",
+            "A pll dog fishing by a lake in watercolor painting style",
+            "A pll dog wearing a hat in watercolor painting style",
+            "A pll dog driving a car in watercolor painting style",
+            "A pll dog watching TV in watercolor painting style",
+            "A pll dog playing a guitar in watercolor painting style",
+            "A pll dog skateboarding in watercolor painting style",
+            "A pll dog reading a book in watercolor painting style"
+        ],
+        "object": [
+            "A pll dog in watercolor painting style",
+            "A pll dog on a table in watercolor painting style",
+            "A pll dog under cherry blossom in watercolor painting style",
+            "A pll dog in front of a house in watercolor painting style"
+        ]
+    }
+}

@@ -1,0 +1,34 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "A person working on a laptop in flat cartoon illustration style"
+        ],
+        "class": "in flat cartoon illustration style",
+        "images": [
+            "dataset/Customization/style_illustration/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in flat cartoon illustration style",
+            "A butterfly in flat cartoon illustration style",
+            "A robot in flat cartoon illustration style",
+            "A dog in flat cartoon illustration style",
+            "A piano in flat cartoon illustration style",
+            "A house in flat cartoon illustration style",
+            "A little gril smiling in flat cartoon illustration style",
+            "A Christmas tree in flat cartoon illustration style"
+        ],
+        "subject": [
+            "A pll dog in flat cartoon illustration style",
+            "A pll dog drinking coffee in flat cartoon illustration style",
+            "A pll dog runing in flat cartoon illustration style",
+            "A pll dog wearing a hat in flat cartoon illustration style",
+            "A pll dog driving a car in flat cartoon illustration style"
+        ],
+        "object": [
+            "A pll dog in flat cartoon illustration style",
+            "A pll dog on a table in flat cartoon illustration style",
+            "A pll dog under cherry blossom in flat cartoon illustration style",
+            "A pll dog in front of a house in flat cartoon illustration style"
+        ]
+    }
+}

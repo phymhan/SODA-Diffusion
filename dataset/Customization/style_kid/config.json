@@ -1,0 +1,34 @@
+{
+    "gpt_cc": {
+        "caption": [
+            "A bear in kid crayon drawing style"
+        ],
+        "class": "in kid crayon drawing style",
+        "images": [
+            "dataset/Customization/style_kid/style.jpg"
+        ],
+        "eval_prompts": [
+            "An F1 race car in kid crayon drawing style",
+            "A butterfly in kid crayon drawing style",
+            "A robot in kid crayon drawing style",
+            "A dog in kid crayon drawing style",
+            "A piano in kid crayon drawing style",
+            "A house in kid crayon drawing style",
+            "A little gril smiling in kid crayon drawing style",
+            "A Christmas tree in kid crayon drawing style"
+        ],
+        "subject": [
+            "A pll dog in kid crayon drawing style",
+            "A pll dog drinking coffee in kid crayon drawing style",
+            "A pll dog runing in kid crayon drawing style",
+            "A pll dog wearing a hat in kid crayon drawing style",
+            "A pll dog driving a car in kid crayon drawing style"
+        ],
+        "object": [
+            "A pll dog in kid crayon drawing style",
+            "A pll dog on a table in kid crayon drawing style",
+            "A pll dog under cherry blossom in kid crayon drawing style",
+            "A pll dog in front of a house in kid crayon drawing style"
+        ]
+    }
+}
