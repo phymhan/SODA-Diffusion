@@ -10,3 +10,4 @@ build
 lora_diffusion.egg-info
 output
 output2
+.vscode
