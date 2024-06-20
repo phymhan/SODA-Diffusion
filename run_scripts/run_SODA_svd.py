@@ -125,7 +125,7 @@ def parse_args(input_args=None):
     parser.add_argument("--adam_weight_decay_text_encoder", type=float, default=None, help="Weight decay to use for text_encoder")
     parser.add_argument("--adam_epsilon", type=float, default=1e-08, help="Epsilon value for the Adam optimizer and Prodigy optimizers.",)
     parser.add_argument("--max_grad_norm", default=1.0, type=float, help="Max gradient norm.")
-    # save config
+    # log config
     parser.add_argument("--logging_dir", type=str, default="logs", help=("[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"    " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."),)
     parser.add_argument("--allow_tf32", action="store_true", help=("Whether or not to allow TF32 on Ampere GPUs. Can be used to speed up training. For more information, see"    " https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices"),)
     parser.add_argument("--report_to", type=str, default="tensorboard", help=('The integration to report the results and logs to. Supported platforms are `"tensorboard"`'    ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'),)
@@ -135,11 +135,11 @@ def parse_args(input_args=None):
     parser.add_argument("--offset_noise", type=float, default=0.0)
     parser.add_argument("--sample_batch_size", type=int, default=8)
     parser.add_argument("--sample_total_num", type=int, default=8)
+    parser.add_argument("--group_name", type=str, default=None, help="The name of the group of experiments.")
+    parser.add_argument("--exp_name", type=str, default=None, help="The name of the experiment.")
     # wandb config
-    parser.add_argument("--wandb_key", type=str, default="9d61360e0722073614d3edd016df312b3f6e2aa2")
-    parser.add_argument("--wandb_project_name", type=str, default="QR-Dreambooth")
-    parser.add_argument("--wandb_group_name", type=str, default=None)
-    parser.add_argument("--wandb_exp_name", type=str, default=None)
+    parser.add_argument("--wandb_key", type=str, default=None)
+    parser.add_argument("--wandb_project_name", type=str, default="SODA")
     
     if input_args is not None:
         args = parser.parse_args(input_args)
@@ -214,7 +214,7 @@ def main(args):
     #####################################
     # 0.0 Init                          #
     #####################################
-    logging_dir = os.path.join(args.output_dir, args.wandb_group_name, args.wandb_exp_name)
+    logging_dir = os.path.join(args.output_dir, args.group_name, args.exp_name)
     os.makedirs(logging_dir, exist_ok=True)
 
     accelerator_project_config = ProjectConfiguration(project_dir=args.output_dir, logging_dir=logging_dir)
