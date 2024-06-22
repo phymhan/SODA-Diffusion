@@ -53,17 +53,10 @@ from peft.utils import get_peft_model_state_dict
 
 # my_scripts 
 from utils.pefts import (
-    inject_trainable_kron_svd3, 
+    inject_trainable_soda_svd, 
 )
 from utils.data import TrainDataset, collate_fn
 from utils.StiefelOptimizers import StiefelAdam
-
-svd_l = {
-    640:  (8, 8, 10),
-    2048: (4, 8,  64),
-    1280: (4, 16, 20),
-    768:  (6, 8,  16)
-} # keep the param same as svd
 
 logger = get_logger(__name__)
 def parse_args(input_args=None):
@@ -108,8 +101,8 @@ def parse_args(input_args=None):
     parser.add_argument("--which_optim", type=str, default="adam", help="Type for Optimizer [adam, adamw, sgd]",)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.",)
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.",)
-    parser.add_argument("--learning_rate", type=float, default=5e-5, help="Initial learning rate (after the potential warmup period) to use.",)
-    parser.add_argument("--delta_learning_rate", type=float, default=5e-5, help="Initial learning rate for the delta parameters.",)
+    parser.add_argument("--kron_learning_rate", type=float, default=5e-5, help="Initial learning rate (after the potential warmup period) to use.",)
+    parser.add_argument("--svd_learning_rate", type=float, default=5e-5, help="Initial learning rate for the delta parameters.",)
     parser.add_argument("--text_encoder_lr", type=float, default=5e-6, help="Text encoder learning rate to use.",)
     parser.add_argument("--scale_lr", action="store_true", default=False, help="Scale the learning rate by the number of GPUs, gradient accumulation steps, and batch size.",)
     parser.add_argument("--lr_scheduler", type=str, default="constant", help=('The scheduler type to use. Choose between ["linear", "cosine", "cosine_with_restarts", "polynomial",'    ' "constant", "constant_with_warmup"]'),)
@@ -129,7 +122,7 @@ def parse_args(input_args=None):
     parser.add_argument("--logging_dir", type=str, default="logs", help=("[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"    " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."),)
     parser.add_argument("--allow_tf32", action="store_true", help=("Whether or not to allow TF32 on Ampere GPUs. Can be used to speed up training. For more information, see"    " https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices"),)
     parser.add_argument("--report_to", type=str, default="tensorboard", help=('The integration to report the results and logs to. Supported platforms are `"tensorboard"`'    ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'),)
-    parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help=("Whether to use mixed precision. Choose between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >="    " 1.10.and an Nvidia Ampere GPU.  Default to the value of accelerate config of the current system or the"    " flag passed with the `accelerate.launch` command. Use this argument to override the accelerate config."),)
+    parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help=("Whether to use mixed precision. Choose between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >="    " 1.10.and an Nvidia Ampere GPU.  Default to the value of accelerate config of the current system or the"    " flag passed with the `accelerate.launch` command. Use this argument to override the accelerate config."),)
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--rank", type=int, default=32, help=("The dimension of the LoRA update matrices."),)
     parser.add_argument("--offset_noise", type=float, default=0.0)
@@ -221,12 +214,11 @@ def main(args):
     kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision=args.mixed_precision, # default fp16
+        mixed_precision=args.mixed_precision, # default no
         #log_with=args.report_to,
         project_config=accelerator_project_config,
         kwargs_handlers=[kwargs],
     )
-
 
     if args.report_to == "wandb":
         if not is_wandb_available():
@@ -250,11 +242,6 @@ def main(args):
     # If passed along, set the training seed now.
     if args.seed is not None:
         set_seed(args.seed)
-    
-    # Handle the repository creation
-    if accelerator.is_main_process:
-        if args.output_dir is not None:
-            os.makedirs(args.output_dir, exist_ok=True)
 
     #####################################
     # 1.0 Load Pretrained Models        #
@@ -308,6 +295,8 @@ def main(args):
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
     )
 
+    #TODO: should text encoders also have freeze model?
+    # dco prior unet
     unet_freeze = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
     )
@@ -355,8 +344,16 @@ def main(args):
     #####################################
     # 1.2 Register PEFT Modules         #
     #####################################
-    unet_kron_qr_params, _, _ = inject_trainable_kron_svd3(
-            unet, loras=None, tmp_l=svd_l
+    # hardcode the shape of kronecker matrices
+    svd_l = {
+    640:  (8, 8, 10),
+    2048: (4, 8,  64),
+    1280: (4, 16, 20),
+    768:  (6, 8,  16)
+    }
+
+    unet_kron_qr_params, _ = inject_trainable_soda_svd(
+            unet, tmp_l=svd_l
         )
 
     unet_kron_qr_params_tosave = list(itertools.chain(unet_kron_qr_params))
@@ -369,9 +366,8 @@ def main(args):
     
     if args.train_text_encoder:
 
-        text_encoder_one_kron_qr_params, text_encoder_one_params_to_save, _ = inject_trainable_kron_svd3(
-            text_encoder_one,
-            target_replace_module=["CLIPAttention"],tmp_l=svd_l
+        text_encoder_one_kron_qr_params, _ = inject_trainable_soda_svd(
+            text_encoder_one, target_replace_module=["CLIPAttention"], tmp_l=svd_l
         )
         # use itertools to slize as the unet did
         text_encoder_one_kron_qr_params_tosave = list(itertools.chain(text_encoder_one_kron_qr_params))
@@ -383,9 +379,8 @@ def main(args):
         text_encoder_one_kron_qr_params_kron = itertools.chain(text_encoder_one_kron_qr_params_kron_1, text_encoder_one_kron_qr_params_kron_2, text_encoder_one_kron_qr_params_kron_3)
 
         # inject text encoder 2
-        text_encoder_two_kron_qr_params, text_encoder_two_params_to_save, _ = inject_trainable_kron_svd3(
-            text_encoder_two,
-            target_replace_module=["CLIPAttention"],tmp_l=svd_l
+        text_encoder_two_kron_qr_params, _ = inject_trainable_soda_svd(
+            text_encoder_two, target_replace_module=["CLIPAttention"], tmp_l=svd_l
         )
         # use itertools to slize as the unet did
         text_encoder_two_kron_qr_params_tosave = list(itertools.chain(text_encoder_two_kron_qr_params))
@@ -431,28 +426,28 @@ def main(args):
     # 2.1 Setting Optimizers            #
     #####################################
     if args.scale_lr:
-        args.learning_rate = (
-            args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
+        args.kron_learning_rate = (
+            args.kron_learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
         )
     
     if args.which_optim == 'adam':
-        optimizer_class = StiefelAdam
-        optim_args = dict(
-            lr=args.learning_rate,
+        kron_optimizer_class = StiefelAdam
+        kron_optim_args = dict(
+            lr=args.kron_learning_rate,
             betas=(args.adam_beta1, args.adam_beta2),
             #weight_decay=args.adam_weight_decay,
             eps=args.adam_epsilon,
         )
-        lora_optim_class = torch.optim.AdamW
-        lora_optim_args = dict(
-            lr=args.learning_rate,
+        svd_optim_class = torch.optim.AdamW
+        svd_optim_args = dict(
+            lr=args.kron_learning_rate,
             betas=(args.adam_beta1, args.adam_beta2),
             weight_decay=args.adam_weight_decay,
             eps=args.adam_epsilon,
         )
     
     text_lr = (
-        args.learning_rate
+        args.kron_learning_rate
         if args.text_encoder_lr is None
         else args.text_encoder_lr
     )
@@ -469,7 +464,7 @@ def main(args):
     # kron
     params_to_optimize_kron = (
         [
-            {"params": unet_kron_qr_params_kron_list, "lr": args.learning_rate},
+            {"params": unet_kron_qr_params_kron_list, "lr": args.kron_learning_rate},
             {"params": text_encoder_one_kron_qr_params_kron_list, "lr": text_lr},
             {"params": text_encoder_two_kron_qr_params_kron_list, "lr": text_lr},
         ]
@@ -477,27 +472,27 @@ def main(args):
         else unet_kron_qr_params_kron_list
     )
 
-    optim_args['lr'] = args.learning_rate
-    optimizer_kron = optimizer_class(
+    kron_optim_args['lr'] = args.kron_learning_rate
+    optimizer_kron = kron_optimizer_class(
             params_to_optimize_kron,
-            **optim_args,
+            **kron_optim_args,
         )
 
     # lora
-    params_to_optimize_lora = (
+    params_to_optimize_svd = (
         [
-            {"params": unet_kron_qr_params_lora_list, "lr": args.delta_learning_rate},
-            {"params": text_encoder_one_kron_qr_params_lora_list, "lr": args.delta_learning_rate*0.1},
-            {"params": text_encoder_two_kron_qr_params_lora_list, "lr": args.delta_learning_rate*0.1},
+            {"params": unet_kron_qr_params_lora_list, "lr": args.svd_learning_rate},
+            {"params": text_encoder_one_kron_qr_params_lora_list, "lr": args.svd_learning_rate*0.1},
+            {"params": text_encoder_two_kron_qr_params_lora_list, "lr": args.svd_learning_rate*0.1},
         ]
         if args.train_text_encoder
         else unet_kron_qr_params_lora_list
     )
 
-    lora_optim_args['lr'] = args.delta_learning_rate
-    optimizer_svd = lora_optim_class(
-        params_to_optimize_lora,
-        **lora_optim_args,
+    svd_optim_args['lr'] = args.svd_learning_rate
+    optimizer_svd = svd_optim_class(
+        params_to_optimize_svd,
+        **svd_optim_args,
     )
 
     #####################################
@@ -646,9 +641,9 @@ def main(args):
         wandb.login(key=args.wandb_key)
         wandb.init(
             project=args.wandb_project_name,
-            name=args.wandb_exp_name,
+            name=args.exp_name,
             config=args,
-            group=args.wandb_group_name
+            group=args.group_name
         )
 
         wandb.log({'params_num': total_params}, commit=False)
@@ -835,53 +830,25 @@ def main(args):
                                         text_encoder_one_kron_qr_params_kron_list, text_encoder_one_kron_qr_params_lora_list,
                                         text_encoder_two_kron_qr_params_kron_list, text_encoder_two_kron_qr_params_lora_list)
                         if args.train_text_encoder
-                        else itertools.chain(unet_kron_qr_params_kron_1_list, unet_kron_qr_params_kron_2_list)
+                        else itertools.chain(unet_kron_qr_params_kron_list, unet_kron_qr_params_lora_list)
                     )
                     accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
 
-                if global_step % 2 == 0:
-                    optimizer_svd.step()
-                else:
-                    optimizer_kron.step()
+                
+                optimizer_svd.step()
+                optimizer_kron.step()
                 lr_scheduler_kron.step()
                 optimizer_kron.zero_grad()
                 optimizer_svd.zero_grad()
 
                 # every step, we reset the embeddings to the original embeddings.
-                if args.train_text_encoder_ti:
-                    embedding_handler.retract_embeddings()
+                #if args.train_text_encoder_ti:
+                #    embedding_handler.retract_embeddings()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
                 progress_bar.update(1)
                 global_step += 1
-                
-                # TODO implement saving
-                """if accelerator.is_main_process:
-                    if global_step % args.checkpointing_steps == 0:
-                        # _before_ saving state, check if this save would set us over the `checkpoints_total_limit`
-                        if args.checkpoints_total_limit is not None:
-                            checkpoints = os.listdir(args.output_dir)
-                            checkpoints = [d for d in checkpoints if d.startswith("checkpoint")]
-                            checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
-
-                            # before we save the new checkpoint, we need to have at _most_ `checkpoints_total_limit - 1` checkpoints
-                            if len(checkpoints) >= args.checkpoints_total_limit:
-                                num_to_remove = len(checkpoints) - args.checkpoints_total_limit + 1
-                                removing_checkpoints = checkpoints[0:num_to_remove]
-
-                                logger.info(
-                                    f"{len(checkpoints)} checkpoints already exist, removing {len(removing_checkpoints)} checkpoints"
-                                )
-                                logger.info(f"removing checkpoints: {', '.join(removing_checkpoints)}")
-
-                                for removing_checkpoint in removing_checkpoints:
-                                    removing_checkpoint = os.path.join(args.output_dir, removing_checkpoint)
-                                    shutil.rmtree(removing_checkpoint)
-
-                        save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                        accelerator.save_state(save_path)
-                        logger.info(f"Saved state to {save_path}")"""
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler_kron.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)

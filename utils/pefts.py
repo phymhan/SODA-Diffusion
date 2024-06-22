@@ -34,10 +34,12 @@ DEFAULT_TARGET_REPLACE = UNET_DEFAULT_TARGET_REPLACE
 ######################################
 # 1.1 SODA_SVD (3 kronecker)         #
 ######################################
-class KronQRInjectedLinear_SVD3(nn.Module):
+class InjectedSODA_SVD(nn.Module):
     def __init__(
-        self, in_features, out_features, bias=False, dropout_p=0.1, scale=1.0, q_rank=2, r_rank=2, tmp_l=None,
-        merge_kron=None, merge_lora=None
+        self, in_features, out_features, 
+        bias=False, dropout_p=0.0, scale=1.0, 
+        tmp_l=None, # to hardcode the shape of kronecker matrices
+        merge_kron=None, merge_svd=None # to merge different checkpoints
     ):
         super().__init__()
 
@@ -46,7 +48,7 @@ class KronQRInjectedLinear_SVD3(nn.Module):
         self.scale = scale
 
         if merge_kron == None:
-            # delta
+            # SVD delta
             self.delta = nn.Parameter(torch.zeros(out_features))
 
             # init delta to be 1e3
@@ -54,7 +56,7 @@ class KronQRInjectedLinear_SVD3(nn.Module):
 
             # Q
             # automatically get kron size
-            #size_kron_Q1, size_kron_Q2, size_kron_Q3 = get_abc(in_features)
+            # size_kron_Q1, size_kron_Q2, size_kron_Q3 = get_abc(in_features)
             svd_l=tmp_l
             size_kron_Q1, size_kron_Q2, size_kron_Q3 = svd_l[in_features]
             self.kron_Q1 = nn.Parameter(torch.eye(size_kron_Q1, size_kron_Q1))
@@ -66,13 +68,12 @@ class KronQRInjectedLinear_SVD3(nn.Module):
             self.kron_Q2 = nn.Parameter(merge_kron[1])
             self.kron_Q3 = nn.Parameter(merge_kron[2])
 
-            self.delta = nn.Parameter(merge_lora)
+            self.delta = nn.Parameter(merge_svd)
     
     def SVD_decompose(self):
         W = self.linear.weight
         with torch.no_grad():
             self.U, self.S, self.V = torch.linalg.svd(W, full_matrices=False)
-        
 
         del self.linear.weight
 
@@ -88,42 +89,37 @@ class KronQRInjectedLinear_SVD3(nn.Module):
             out * self.scale
         )
 
-def inject_trainable_kron_svd3(
+def inject_trainable_soda_svd(
     model: nn.Module,
     target_replace_module: Set[str] = DEFAULT_TARGET_REPLACE,
-    q_rank: int = 4,
-    r_rank: int = 4,
-    loras=None,  # path to lora .pt
     verbose: bool = False,
     dropout_p: float = 0.0,
     scale: float = 1.0,
-    tmp_l=None,
-    db_list=None,
-    style_list=None,
-    db_lambda=1.0,
-    style_lambda=1.0,
+    tmp_l=None, # to hardcode the shape of kronecker matrices
+    subject_list=None, # saved weights for the subject customization
+    style_list=None, # saved weights for the style customization
+    db_lambda=1.0, style_lambda=1.0, # weights for merging the saved weights
 ):
     """
     inject lora into model, and returns lora parameter groups.
     """
 
     require_grad_params = []
-    params_to_save = []
     names = []
 
     # merge lora_list and style_list
-    if db_list is not None:
-        db_kron = list(itertools.chain([db_list.pop(0)], [db_list.pop(0)], [db_list.pop(0)]))
-        db_lora= db_list.pop(0)
+    if subject_list is not None:
+        db_kron = list(itertools.chain([subject_list.pop(0)], [subject_list.pop(0)], [subject_list.pop(0)]))
+        db_lora= subject_list.pop(0)
         
         style_kron = list(itertools.chain([style_list.pop(0)], [style_list.pop(0)], [style_list.pop(0)]))
         style_lora = style_list.pop(0)
 
-        merge_lora = db_lora * db_lambda + style_lora * style_lambda
+        merge_svd = db_lora * db_lambda + style_lora * style_lambda
         merge_kron = [db_kron[0] * db_lambda + style_kron[0] * style_lambda, db_kron[1] * db_lambda + style_kron[1] * style_lambda, db_kron[2] * db_lambda + style_kron[2] * style_lambda]
     else:
         merge_kron = None
-        merge_lora = None
+        merge_svd = None
 
     for _module, name, _child_module in _find_modules(
         model, target_replace_module, search_class=[nn.Linear]
@@ -133,17 +129,15 @@ def inject_trainable_kron_svd3(
         if verbose:
             print("LoRA Injection : injecting lora into ", name)
             print("LoRA Injection : weight shape", weight.shape)
-        _tmp = KronQRInjectedLinear_SVD3(
+        _tmp = InjectedSODA_SVD(
             _child_module.in_features,
             _child_module.out_features,
-            _child_module.bias is not None,
-            r_rank=r_rank,
-            q_rank=q_rank, 
+            _child_module.bias is not None, 
             dropout_p=dropout_p,
             scale=scale,
             tmp_l=tmp_l,
             merge_kron=merge_kron,
-            merge_lora=merge_lora
+            merge_svd=merge_svd
         )
         _tmp.linear.weight = weight
         if bias is not None:
@@ -159,24 +153,17 @@ def inject_trainable_kron_svd3(
         require_grad_params.append([_module._modules[name].kron_Q3])
         require_grad_params.append([_module._modules[name].delta])
 
-        params_to_save.append(_module._modules[name].kron_Q1)
-        params_to_save.append(_module._modules[name].kron_Q2)
-        params_to_save.append(_module._modules[name].kron_Q3)
-        params_to_save.append(_module._modules[name].delta)
-
-        if loras != None:
-            _module._modules[name].lora = loras.pop(0)
-
-        _module._modules[name].kron_Q1.requires_grad = True
-        _module._modules[name].kron_Q2.requires_grad = True
-        _module._modules[name].kron_Q3.requires_grad = True
-        _module._modules[name].delta.requires_grad = True
+        if subject_list is None:
+            _module._modules[name].kron_Q1.requires_grad = True
+            _module._modules[name].kron_Q2.requires_grad = True
+            _module._modules[name].kron_Q3.requires_grad = True
+            _module._modules[name].delta.requires_grad = True
         names.append(name)
 
-    return require_grad_params, params_to_save, names
+    return require_grad_params,  names
 
 ######################################
-# 4. Utils                            #
+# 2. Utils                            #
 ######################################
 def _find_modules_v2(
     model,
@@ -225,32 +212,3 @@ def _find_modules_v2(
                 yield parent, name, module
 
 _find_modules = _find_modules_v2
-
-def count_params(params):
-
-    total_params = 0
-    for param in list(params):
-        for p in list(param):
-            if p.requires_grad:
-                # param.numel() gives the total number of elements in the parameter tensor, 
-                # which corresponds to the number of trainable parameters for that tensor.
-                total_params += p.numel()
-    
-    return total_params
-
-def save_safeloras(
-    modelmap: Dict[str, nn.Module],
-    filename: str,
-    target_class
-):
-    weights = {}
-    metadata = {}
-
-    for name, (model, target_replace_module) in modelmap.items():
-        metadata[name] = json.dumps(list(target_replace_module))
-
-        # extract all the target_replace_module
-        for _module, name, _child_module in _find_modules(
-            model, target_replace_module, search_class=target_class
-        ):
-            weights[name] = _child_module.realize_as_lora()
